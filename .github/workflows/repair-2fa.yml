@@ -37,7 +37,7 @@ jobs:
       - name: Archive current LiveContainer
         run: |
           set -euo pipefail
-          xcodebuild archive -archivePath "$archive_path" -scheme "$scheme" -project LiveContainer.xcodeproj -sdk iphoneos -arch arm64 -configuration Release CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/livecontainer-build.log" 2>&1
+          xcodebuild archive -archivePath "$archive_path" -scheme "$scheme" -project LiveContainer.xcodeproj -sdk iphoneos -arch arm64 -configuration Release > "$RUNNER_TEMP/livecontainer-build.log" 2>&1
       - name: Package integrated IPA
         env:
           SIDESTORE_IPA: ${{ github.workspace }}/sidestore-source/SideStore.ipa
