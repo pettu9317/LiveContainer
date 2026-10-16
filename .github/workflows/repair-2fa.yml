@@ -1,0 +1,62 @@
+name: Build bundled SideStore 2FA repair
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      archive_path: archive
+      scheme: LiveContainer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          repository: pettu9317/SideStore
+          ref: 1dbdc496d67f6e278f1ef5fa14c9c8caf4d44681
+          submodules: recursive
+          path: sidestore-source
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
+      - name: Install packaging tools
+        run: brew install ldid xcbeautify wget
+      - name: Build dedicated SideStore fork
+        working-directory: sidestore-source
+        run: |
+          set -euo pipefail
+          test "$(git -C Dependencies/SideSign rev-parse HEAD)" = 752d1ef602aa792a432ffa1e71646dc1ecf7363c
+          make build fakesign ipa > "$RUNNER_TEMP/sidestore-build.log" 2>&1
+      - name: Archive current LiveContainer
+        run: |
+          set -euo pipefail
+          xcodebuild archive -archivePath "$archive_path" -scheme "$scheme" -project LiveContainer.xcodeproj -sdk iphoneos -arch arm64 -configuration Release CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/livecontainer-build.log" 2>&1
+      - name: Package integrated IPA
+        env:
+          SIDESTORE_IPA: ${{ github.workspace }}/sidestore-source/SideStore.ipa
+        run: bash .github/build_github.sh
+      - name: Record provenance
+        run: |
+          git rev-parse HEAD > provenance.txt
+          git -C sidestore-source rev-parse HEAD >> provenance.txt
+          git -C sidestore-source/Dependencies/SideSign rev-parse HEAD >> provenance.txt
+          shasum -a 256 LiveContainer+SideStore.ipa >> provenance.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveContainer-SideStore-2FA-repair
+          path: |
+            LiveContainer+SideStore.ipa
+            provenance.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-logs
+          path: ${{ runner.temp }}/*-build.log
